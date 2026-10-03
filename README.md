@@ -77,4 +77,51 @@ docker compose up -d --build
 Приложение будет на `http://localhost:${HTTP_PORT}` (nginx отдаёт фронтенд и проксирует `/api`).
 Миграции применяются при старте контейнера `backend`.
 
-На публичном сервере `PUBLIC_URL` должен быть `https://…` — тогда cookie получают флаг `Secure`.
+## Развёртывание на сервере с HTTPS
+
+Пример для домена `debtcalc.mogal.ru` и VPS на Ubuntu с Docker. Сертификат выпускает certbot на самом сервере,
+nginx в контейнере `frontend` берёт его из `/etc/letsencrypt` (подключается файлом `docker-compose.prod.yml`).
+
+1. **DNS.** В зоне `mogal.ru` — A-запись `debtcalc` → IP сервера.
+2. **Код и настройки.**
+   ```bash
+   sudo git clone https://github.com/mogaliulin/debtcalc.git /opt/debtcalc && cd /opt/debtcalc
+   sudo cp .env.example .env && sudo nano .env
+   ```
+   В `.env`: `DOMAIN=debtcalc.mogal.ru`, `PUBLIC_URL=https://debtcalc.mogal.ru`, ключи Яндекса,
+   случайные `SECRET_KEY` и `POSTGRES_PASSWORD`, `DEV_AUTH_BYPASS=false`. Строку `HTTP_PORT` удалите
+   (на сервере nginx слушает 80 и 443).
+3. **Яндекс OAuth.** Добавьте Redirect URI `https://debtcalc.mogal.ru/api/auth/yandex/callback`.
+4. **Сертификат.** Если certbot ещё не запускали:
+   ```bash
+   sudo certbot certonly --standalone -d debtcalc.mogal.ru   # порт 80 должен быть свободен
+   ```
+   Подойдёт и wildcard `*.mogal.ru`: тогда укажите в `.env` `CERT_NAME` — имя его папки в
+   `/etc/letsencrypt/live/` (`sudo certbot certificates` → `Certificate Name`, обычно `mogal.ru`).
+   Шаг 6 для wildcard не подходит: его продлевают только через DNS (см. ниже).
+5. **Запуск.**
+   ```bash
+   sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+   ```
+6. **Автопродление.** Сайт занимает порт 80, поэтому `--standalone` при продлении уже не сработает —
+   переключите certbot на webroot (каталог `/var/www/certbot` смонтирован в nginx) и поставьте хук перезагрузки nginx:
+   ```bash
+   sudo mkdir -p /var/www/certbot
+   sudo certbot certonly --webroot -w /var/www/certbot -d debtcalc.mogal.ru --force-renewal
+   sudo install -m 755 deploy/certbot-reload-nginx.sh /etc/letsencrypt/renewal-hooks/deploy/reload-debtcalc.sh
+   sudo certbot renew --dry-run                                # проверка, что продление работает
+   ```
+   Хук по умолчанию ищет проект в `/opt/debtcalc` (переменная `PROJECT_DIR` в скрипте).
+
+   **Wildcard-сертификат** Let's Encrypt проверяет только по TXT-записи `_acme-challenge` в DNS. Если он выпущен
+   вручную (`--manual`), сам он не продлится — раз в 90 дней придётся повторять выпуск и после него выполнять
+   `docker compose -f docker-compose.yml -f docker-compose.prod.yml exec frontend nginx -s reload`.
+   Для автопродления нужен DNS-плагин certbot для вашего DNS-провайдера с доступом к его API;
+   хук из `deploy/` тоже установите — он перезагрузит nginx после продления.
+
+Обновление после изменений в репозитории:
+```bash
+cd /opt/debtcalc && sudo git pull && sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Cookie получают флаг `Secure`, потому что `PUBLIC_URL` начинается с `https://`.

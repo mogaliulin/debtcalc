@@ -1,0 +1,16 @@
+# Запуск на сервере с HTTPS (сертификат Let's Encrypt от certbot на хосте):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  frontend:
+    environment:
+      DOMAIN: ${DOMAIN:?Укажите DOMAIN в .env}
+      # имя папки в /etc/letsencrypt/live/ (для wildcard *.mogal.ru это обычно mogal.ru)
+      CERT_NAME: ${CERT_NAME:-${DOMAIN}}
+    ports: !override
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./frontend/nginx.prod.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # live/ ссылается на archive/, поэтому монтируем каталог целиком
+      - ${CERTS_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
+      - ${ACME_WEBROOT:-/var/www/certbot}:/var/www/certbot:ro
