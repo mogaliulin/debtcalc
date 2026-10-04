@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import auth, debts, me
+from app.api import auth, debts, me, sharing
 
 
 def create_app() -> FastAPI:
@@ -10,6 +10,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     app.include_router(me.router, prefix="/api")
     app.include_router(debts.router, prefix="/api")
+    app.include_router(sharing.router, prefix="/api")
 
     @app.get("/api/health", tags=["health"])
     async def health() -> dict[str, str]:

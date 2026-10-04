@@ -6,6 +6,7 @@ import type { Me, MeUpdate } from "../api/types";
 import { Avatar } from "../components/Avatar";
 import { BackButton } from "../components/Buttons";
 import { notify, useConfirm } from "../components/ConfirmDialog";
+import { SharingSettings } from "../components/SharingSettings";
 
 function timezones(current: string): string[] {
   const all = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
@@ -42,7 +43,7 @@ export function Settings({ me }: { me: Me }) {
       </header>
 
       <section className="card profile">
-        <Avatar me={me} size={56} />
+        <Avatar user={me} size={56} />
         <div className="profile-text">
           <div className="profile-name">{me.display_name}</div>
           <div className="hint">{me.email ?? me.login}</div>
@@ -69,6 +70,8 @@ export function Settings({ me }: { me: Me }) {
         )}
         <p className="hint">По часовому поясу определяется «сегодня» — какие платежи считаются просроченными.</p>
       </section>
+
+      <SharingSettings />
 
       <button
         className="btn btn-danger-plain btn-block"

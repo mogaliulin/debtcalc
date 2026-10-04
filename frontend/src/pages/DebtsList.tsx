@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { Debt, Me } from "../api/types";
+import type { Debt, DebtList, Me } from "../api/types";
 import { Avatar } from "../components/Avatar";
 import { DebtCard } from "../components/DebtCard";
 import { MainButton } from "../components/Buttons";
-import { formatDate, money } from "../format";
+import { useCurrentList } from "../currentList";
+import { ROLE_LABEL, formatDate, money } from "../format";
 import { ErrorState, Loading } from "./states";
 
 function nearestPayment(debts: Debt[]) {
@@ -15,15 +16,41 @@ function nearestPayment(debts: Debt[]) {
     .sort((a, b) => a.row.date.localeCompare(b.row.date))[0];
 }
 
+function ListSwitcher({ lists, current, onSelect }: { lists: DebtList[]; current: DebtList; onSelect: (id: number) => void }) {
+  return (
+    <div className="chips list-switch" role="tablist" aria-label="Списки долгов">
+      {lists.map((l) => (
+        <button
+          key={l.owner.user_id}
+          role="tab"
+          aria-selected={l === current}
+          className={`chip ${l === current ? "chip-on" : ""}`}
+          onClick={() => onSelect(l.owner.user_id)}
+        >
+          {l.is_own ? "Мой список" : l.owner.display_name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function DebtsList({ me }: { me: Me }) {
   const navigate = useNavigate();
-  const { data: debts, isPending, error, refetch } = useQuery({ queryKey: ["debts"], queryFn: api.debts });
+  const { lists, current, select } = useCurrentList();
+  const listId = current?.owner.user_id;
+  const debtsQuery = useQuery({
+    queryKey: ["debts", listId],
+    queryFn: () => api.debts(listId),
+    enabled: listId !== undefined,
+  });
 
-  const addButton = <MainButton text="Добавить долг" onClick={() => navigate("/debts/new")} />;
+  if (lists.isPending || (listId !== undefined && debtsQuery.isPending)) return <Loading />;
+  if (lists.error) return <ErrorState error={lists.error} onRetry={lists.refetch} />;
+  if (debtsQuery.error) return <ErrorState error={debtsQuery.error} onRetry={debtsQuery.refetch} />;
+  if (!current || !debtsQuery.data) return <Loading />;
 
-  if (isPending) return <Loading />;
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
-
+  const debts = debtsQuery.data;
+  const canEdit = current.role !== "viewer";
   const active = debts.filter((d) => !d.summary.is_closed);
   const closed = debts.filter((d) => d.summary.is_closed);
   const totalRemaining = active.reduce((sum, d) => sum + Number(d.summary.remaining_balance), 0);
@@ -32,11 +59,22 @@ export function DebtsList({ me }: { me: Me }) {
   return (
     <div className="page">
       <header className="page-header">
-        <h1>Мои долги</h1>
+        <h1>{current.is_own ? "Мои долги" : `Долги: ${current.owner.display_name}`}</h1>
         <Link to="/settings" className="avatar-link" aria-label="Профиль и настройки" title={me.display_name}>
-          <Avatar me={me} />
+          <Avatar user={me} />
         </Link>
       </header>
+
+      {lists.data.length > 1 && <ListSwitcher lists={lists.data} current={current} onSelect={select} />}
+
+      {!current.is_own && (
+        <div className="banner banner-info shared-banner">
+          <Avatar user={current.owner} size={24} />
+          <span>
+            Список ведёт {current.owner.display_name} · у вас {ROLE_LABEL[current.role]}
+          </span>
+        </div>
+      )}
 
       {debts.length === 0 ? (
         <div className="empty">
@@ -44,7 +82,7 @@ export function DebtsList({ me }: { me: Me }) {
             💳
           </div>
           <p>Пока нет ни одного долга.</p>
-          <p className="hint">Добавьте кредит или заём, чтобы увидеть график платежей.</p>
+          {canEdit && <p className="hint">Добавьте кредит или заём, чтобы увидеть график платежей.</p>}
         </div>
       ) : (
         <>
@@ -80,7 +118,12 @@ export function DebtsList({ me }: { me: Me }) {
           )}
         </>
       )}
-      {addButton}
+      {canEdit && (
+        <MainButton
+          text="Добавить долг"
+          onClick={() => navigate(current.is_own ? "/debts/new" : `/debts/new?list=${current.owner.user_id}`)}
+        />
+      )}
     </div>
   );
 }

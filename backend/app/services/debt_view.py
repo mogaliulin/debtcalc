@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from app.models import Debt, User
 from app.schemas import DebtOut, EarlyPaymentOut, ScheduleOut, ScheduleRowOut, SummaryOut
+from app.services.access import Role
 from app.services.calculator import ScheduleRow, build_schedule
 from app.services.summary import ScheduleSummary, summarize
 
@@ -57,7 +58,7 @@ def compute(debt: Debt, today: date) -> tuple[list[ScheduleRow], ScheduleSummary
     return rows, summarize(debt.loan_params().principal, rows, paid, today), paid
 
 
-def debt_out(debt: Debt, today: date) -> DebtOut:
+def debt_out(debt: Debt, today: date, role: Role) -> DebtOut:
     _, summary, paid = compute(debt, today)
     return DebtOut(
         id=debt.id,
@@ -70,6 +71,8 @@ def debt_out(debt: Debt, today: date) -> DebtOut:
         schedule_type=debt.schedule_type,  # type: ignore[arg-type]
         early_payments=[EarlyPaymentOut.model_validate(ep) for ep in debt.early_payments],
         summary=summary_out(summary, paid, today),
+        owner_id=debt.user_id,
+        role=role,
     )
 
 

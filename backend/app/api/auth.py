@@ -32,6 +32,13 @@ def _site_url(settings: Settings, path: str = "/", **query: str) -> str:
     return f"{url}?{urlencode(query)}" if query else url
 
 
+def safe_next(path: str | None) -> str:
+    """Путь для возврата после входа: только внутренний (защита от открытого редиректа на чужой сайт)."""
+    if not path or not path.startswith("/") or path.startswith("//") or "\\" in path:
+        return "/"
+    return path
+
+
 def _login_error(settings: Settings, message: str) -> RedirectResponse:
     response = RedirectResponse(_site_url(settings, "/login", error=message), status.HTTP_302_FOUND)
     response.delete_cookie(STATE_COOKIE, path=STATE_COOKIE_PATH)
@@ -39,7 +46,7 @@ def _login_error(settings: Settings, message: str) -> RedirectResponse:
 
 
 @router.get("/yandex/login")
-async def yandex_login(settings: Annotated[Settings, Depends(get_settings)]) -> RedirectResponse:
+async def yandex_login(settings: Annotated[Settings, Depends(get_settings)], next: str | None = None) -> RedirectResponse:
     if not settings.yandex_client_id or not settings.yandex_client_secret:
         return _login_error(settings, "Вход через Яндекс не настроен на сервере")
     state = secrets.token_urlsafe(32)
@@ -50,7 +57,7 @@ async def yandex_login(settings: Annotated[Settings, Depends(get_settings)]) -> 
     )
     response.set_cookie(
         STATE_COOKIE,
-        sign_payload({"state": state, "verifier": verifier}, settings.secret_key, STATE_TTL_SECONDS),
+        sign_payload({"state": state, "verifier": verifier, "next": safe_next(next)}, settings.secret_key, STATE_TTL_SECONDS),
         max_age=STATE_TTL_SECONDS,
         httponly=True,
         secure=settings.cookie_secure,
@@ -87,7 +94,7 @@ async def yandex_callback(
     # Токен Яндекса нужен только чтобы узнать пользователя — не храним его
     user = await upsert_user(session, ya_user)
     token = await create_session(session, user, settings.session_ttl_days)
-    response = RedirectResponse(_site_url(settings), status.HTTP_302_FOUND)
+    response = RedirectResponse(_site_url(settings, safe_next(saved.get("next"))), status.HTTP_302_FOUND)
     response.delete_cookie(STATE_COOKIE, path=STATE_COOKIE_PATH)
     set_session_cookie(response, token, settings)
     return response

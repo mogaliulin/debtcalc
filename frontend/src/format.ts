@@ -53,3 +53,19 @@ export const SCHEDULE_LABEL = {
   annuity: "Аннуитетный",
   differentiated: "Дифференцированный",
 } as const;
+
+export const ROLE_LABEL = {
+  owner: "владелец",
+  editor: "редактирование",
+  viewer: "только просмотр",
+} as const;
+
+export const ROLE_DESC = {
+  editor: "может добавлять и удалять долги, отмечать платежи и вносить досрочные погашения",
+  viewer: "видит долги и графики, но ничего не меняет",
+} as const;
+
+/** Дата из ISO-строки с временем (например, срок действия приглашения). */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleDateString("ru-RU");
+}

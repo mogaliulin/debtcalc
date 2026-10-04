@@ -2,6 +2,9 @@
 
 export type ScheduleType = "annuity" | "differentiated";
 export type EarlyMode = "reduce_term" | "reduce_payment";
+/** Права текущего пользователя на список долгов. */
+export type Role = "owner" | "editor" | "viewer";
+export type MemberRole = Exclude<Role, "owner">;
 
 export interface LoanInput {
   principal: string;
@@ -62,6 +65,8 @@ export interface Debt {
   schedule_type: ScheduleType;
   early_payments: EarlyPayment[];
   summary: Summary;
+  owner_id: number;
+  role: Role;
 }
 
 export interface Schedule {
@@ -85,3 +90,37 @@ export interface Me {
 }
 
 export type MeUpdate = Partial<Pick<Me, "timezone">>;
+
+export interface Person {
+  user_id: number;
+  display_name: string;
+  login: string;
+  avatar_url: string | null;
+}
+
+/** Список долгов (все долги владельца), доступный текущему пользователю. */
+export interface DebtList {
+  owner: Person;
+  role: Role;
+  is_own: boolean;
+}
+
+export interface Member {
+  user: Person;
+  role: MemberRole;
+}
+
+export interface Invite {
+  id: number;
+  role: MemberRole;
+  expires_at: string;
+  /** Только в ответе на создание: сервер хранит лишь хэш токена. */
+  url: string | null;
+}
+
+export interface InvitePreview {
+  owner: Person;
+  role: MemberRole;
+  is_own: boolean;
+  current_role: Role | null;
+}

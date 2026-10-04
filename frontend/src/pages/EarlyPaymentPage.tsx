@@ -46,6 +46,14 @@ export function EarlyPaymentPage() {
   const amountNumber = Number(normalizeNumber(amount));
   const invalid = !date || !amount || !Number.isFinite(amountNumber) || amountNumber <= 0;
   const { summary } = debt.data;
+  if (debt.data.role === "viewer") {
+    return (
+      <div className="page">
+        <BackButton to={`/debts/${debtId}`} />
+        <p className="hint center-text">У вас доступ к этому списку только для просмотра.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page">

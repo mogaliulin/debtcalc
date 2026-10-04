@@ -7,7 +7,9 @@ import { notify, useConfirm } from "../components/ConfirmDialog";
 import { ProgressBar } from "../components/ProgressBar";
 import { ScheduleList, rowKey } from "../components/ScheduleList";
 import { BackButton, MainButton } from "../components/Buttons";
-import { SCHEDULE_LABEL, formatDate, money, pluralMonths, rate } from "../format";
+import { Avatar } from "../components/Avatar";
+import { useLists } from "../currentList";
+import { ROLE_LABEL, SCHEDULE_LABEL, formatDate, money, pluralMonths, rate } from "../format";
 import { ErrorState, Loading } from "./states";
 
 export function DebtDetail() {
@@ -20,6 +22,7 @@ export function DebtDetail() {
 
   const debt = useQuery({ queryKey: ["debt", debtId], queryFn: () => api.debt(debtId) });
   const schedule = useQuery({ queryKey: ["schedule", debtId], queryFn: () => api.schedule(debtId) });
+  const lists = useLists();
 
   const applySchedule = (data: Schedule) => {
     queryClient.setQueryData(["schedule", debtId], data);
@@ -72,6 +75,8 @@ export function DebtDetail() {
   if (schedule.error) return <ErrorState error={schedule.error} onRetry={schedule.refetch} />;
 
   const d = debt.data;
+  const canEdit = d.role !== "viewer";
+  const sharedList = d.role === "owner" ? undefined : lists.data?.find((l) => l.owner.user_id === d.owner_id);
   const { rows, summary } = schedule.data;
   const next = summary.next_payment;
   const visibleRows = hidePaid ? rows.filter((r) => !r.is_paid) : rows;
@@ -100,9 +105,11 @@ export function DebtDetail() {
         {editingName === null ? (
           <>
             <h1>{d.name}</h1>
-            <button className="icon-btn" aria-label="Переименовать" onClick={() => setEditingName(d.name)}>
-              ✎
-            </button>
+            {canEdit && (
+              <button className="icon-btn" aria-label="Переименовать" onClick={() => setEditingName(d.name)}>
+                ✎
+              </button>
+            )}
           </>
         ) : (
           <form
@@ -123,6 +130,15 @@ export function DebtDetail() {
         )}
       </header>
 
+      {sharedList && (
+        <div className="banner banner-info shared-banner">
+          <Avatar user={sharedList.owner} size={24} />
+          <span>
+            Список {sharedList.owner.display_name} · у вас {ROLE_LABEL[d.role]}
+          </span>
+        </div>
+      )}
+
       <section className="card">
         <div className="hint">Остаток основного долга</div>
         <div className="big-value">{money(summary.remaining_balance)}</div>
@@ -131,7 +147,7 @@ export function DebtDetail() {
           Погашено {Math.round(summary.progress * 100)}% · оплачено {summary.paid_count} из {summary.periods_count}
         </div>
 
-        {summary.overdue_count > 0 && (
+        {canEdit && summary.overdue_count > 0 && (
           <div className="banner banner-danger">
             Не отмечено как оплаченные: {summary.overdue_count}. Отметьте прошедшие платежи в графике ниже.
           </div>
@@ -172,17 +188,24 @@ export function DebtDetail() {
       </div>
       <section className="card card-flush">
         {visibleRows.length ? (
-          <ScheduleList rows={visibleRows} onTogglePaid={onTogglePaid} onDeleteEarly={onDeleteEarly} busyKey={busyKey} />
+          <ScheduleList
+            rows={visibleRows}
+            onTogglePaid={canEdit ? onTogglePaid : undefined}
+            onDeleteEarly={canEdit ? onDeleteEarly : undefined}
+            busyKey={busyKey}
+          />
         ) : (
           <p className="hint center-text">Все платежи оплачены 🎉</p>
         )}
       </section>
 
-      <button className="btn btn-danger-plain btn-block" onClick={onDeleteDebt} disabled={remove.isPending}>
-        Удалить долг
-      </button>
+      {canEdit && (
+        <button className="btn btn-danger-plain btn-block" onClick={onDeleteDebt} disabled={remove.isPending}>
+          Удалить долг
+        </button>
+      )}
 
-      {!summary.is_closed && (
+      {canEdit && !summary.is_closed && (
         <MainButton text="Досрочный платёж" onClick={() => navigate(`/debts/${debtId}/early`)} />
       )}
     </div>

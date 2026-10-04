@@ -1,11 +1,14 @@
 import type { Me } from "../api/types";
 
-export function Avatar({ me, size = 36 }: { me: Me; size?: number }) {
+/** Подходит и для профиля (Me), и для владельца/участника списка (Person). */
+type AvatarUser = Pick<Me, "display_name" | "login" | "avatar_url">;
+
+export function Avatar({ user, size = 36 }: { user: AvatarUser; size?: number }) {
   const style = { width: size, height: size, fontSize: size * 0.42 };
-  if (me.avatar_url) {
-    return <img className="avatar" src={me.avatar_url} alt="" style={style} referrerPolicy="no-referrer" />;
+  if (user.avatar_url) {
+    return <img className="avatar" src={user.avatar_url} alt="" style={style} referrerPolicy="no-referrer" />;
   }
-  const letter = (me.display_name || me.login || "?").trim().charAt(0).toUpperCase();
+  const letter = (user.display_name || user.login || "?").trim().charAt(0).toUpperCase();
   return (
     <span className="avatar avatar-letter" style={style} aria-hidden>
       {letter}

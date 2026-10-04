@@ -32,7 +32,7 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _utc(value: datetime) -> datetime:
+def as_utc(value: datetime) -> datetime:
     # SQLite возвращает naive datetime — считаем его UTC
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
@@ -109,7 +109,7 @@ async def _user_by_token(session: AsyncSession, token: str) -> User | None:
     row = await session.get(UserSession, hash_token(token))
     if row is None:
         return None
-    if _utc(row.expires_at) <= datetime.now(timezone.utc):
+    if as_utc(row.expires_at) <= datetime.now(timezone.utc):
         await session.delete(row)
         await session.commit()
         return None

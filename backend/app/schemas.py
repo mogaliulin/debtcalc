@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from zoneinfo import available_timezones
@@ -6,6 +6,8 @@ from zoneinfo import available_timezones
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 ScheduleType = Literal["annuity", "differentiated"]
+Role = Literal["owner", "editor", "viewer"]
+MemberRole = Literal["editor", "viewer"]
 EarlyMode = Literal["reduce_term", "reduce_payment"]
 
 
@@ -88,6 +90,9 @@ class DebtOut(BaseModel):
     schedule_type: ScheduleType
     early_payments: list[EarlyPaymentOut]
     summary: SummaryOut
+    owner_id: int
+    # права текущего пользователя на этот долг
+    role: Role
 
 
 class ScheduleOut(BaseModel):
@@ -113,3 +118,48 @@ class UserUpdate(BaseModel):
         if value is not None and value not in available_timezones():
             raise ValueError("Неизвестный часовой пояс")
         return value
+
+
+# --- совместный доступ ---
+
+class PersonOut(BaseModel):
+    user_id: int
+    display_name: str
+    login: str
+    avatar_url: str | None
+
+
+class ListOut(BaseModel):
+    """Список долгов, доступный текущему пользователю: свой или чужой, к которому открыт доступ."""
+
+    owner: PersonOut
+    role: Role
+    is_own: bool
+
+
+class MemberOut(BaseModel):
+    user: PersonOut
+    role: MemberRole
+
+
+class MemberUpdate(BaseModel):
+    role: MemberRole
+
+
+class InviteCreate(BaseModel):
+    role: MemberRole
+
+
+class InviteOut(BaseModel):
+    id: int
+    role: MemberRole
+    expires_at: datetime
+    # ссылка показывается только при создании: в БД хранится лишь хэш токена
+    url: str | None = None
+
+
+class InvitePreview(BaseModel):
+    owner: PersonOut
+    role: MemberRole
+    is_own: bool
+    current_role: Role | None

@@ -8,13 +8,12 @@ router = APIRouter(tags=["me"])
 
 
 def user_out(user: User) -> UserOut:
-    avatar_url = f"https://avatars.yandex.net/get-yapic/{user.avatar_id}/islands-68" if user.avatar_id else None
     return UserOut(
         id=user.id,
         login=user.login,
-        display_name=user.display_name or user.login,
+        display_name=user.name,
         email=user.email,
-        avatar_url=avatar_url,
+        avatar_url=user.avatar_url,
         timezone=user.timezone,
     )
 

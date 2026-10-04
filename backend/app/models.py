@@ -22,6 +22,14 @@ class User(Base):
 
     debts: Mapped[list["Debt"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
+    @property
+    def avatar_url(self) -> str | None:
+        return f"https://avatars.yandex.net/get-yapic/{self.avatar_id}/islands-68" if self.avatar_id else None
+
+    @property
+    def name(self) -> str:
+        return self.display_name or self.login
+
 
 class UserSession(Base):
     """Серверная сессия. В cookie лежит случайный токен, в БД — только его SHA-256."""
@@ -97,3 +105,32 @@ class PaidPeriod(Base):
     paid_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     debt: Mapped[Debt] = relationship(back_populates="paid_periods")
+
+
+class ListMember(Base):
+    """Доступ пользователя member к списку долгов пользователя owner (список = все долги владельца)."""
+
+    __tablename__ = "list_members"
+
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    member_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    role: Mapped[str] = mapped_column(String(20))  # editor | viewer
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    owner: Mapped[User] = relationship(foreign_keys=[owner_id], lazy="joined")
+    member: Mapped[User] = relationship(foreign_keys=[member_id], lazy="joined")
+
+
+class ListInvite(Base):
+    """Одноразовое приглашение в список. В ссылке — случайный токен, в БД — только его SHA-256."""
+
+    __tablename__ = "list_invites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    role: Mapped[str] = mapped_column(String(20))  # editor | viewer
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    owner: Mapped[User] = relationship(lazy="joined")

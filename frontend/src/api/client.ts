@@ -1,9 +1,30 @@
-import type { Debt, DebtInput, EarlyPaymentInput, LoanInput, Me, MeUpdate, Schedule } from "./types";
+import type {
+  Debt,
+  DebtInput,
+  DebtList,
+  EarlyPaymentInput,
+  Invite,
+  InvitePreview,
+  LoanInput,
+  Me,
+  MeUpdate,
+  Member,
+  MemberRole,
+  Schedule,
+} from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "";
 
-/** Полная навигация (не fetch): сервер перенаправит на страницу входа Яндекс ID. */
-export const YANDEX_LOGIN_URL = `${BASE}/api/auth/yandex/login`;
+/**
+ * Адрес для полной навигации (не fetch): сервер перенаправит на страницу входа Яндекс ID,
+ * а после входа вернёт на next (только внутренний путь — сервер проверяет это сам).
+ */
+export function yandexLoginUrl(next?: string | null): string {
+  const query = next && next !== "/" ? `?${new URLSearchParams({ next })}` : "";
+  return `${BASE}/api/auth/yandex/login${query}`;
+}
+
+const listQuery = (listId?: number) => (listId === undefined ? "" : `?list_id=${listId}`);
 
 export class ApiError extends Error {
   constructor(
@@ -52,9 +73,10 @@ export const api = {
 
   calculate: (loan: LoanInput) => request<Schedule>("POST", "/calculate", loan),
 
-  debts: () => request<Debt[]>("GET", "/debts"),
+  /** listId — id владельца списка; без него — собственный список. */
+  debts: (listId?: number) => request<Debt[]>("GET", `/debts${listQuery(listId)}`),
   debt: (id: number) => request<Debt>("GET", `/debts/${id}`),
-  createDebt: (data: DebtInput) => request<Debt>("POST", "/debts", data),
+  createDebt: (data: DebtInput, listId?: number) => request<Debt>("POST", `/debts${listQuery(listId)}`, data),
   renameDebt: (id: number, name: string) => request<Debt>("PATCH", `/debts/${id}`, { name }),
   deleteDebt: (id: number) => request<void>("DELETE", `/debts/${id}`),
 
@@ -65,4 +87,16 @@ export const api = {
     request<Schedule>("POST", `/debts/${id}/early-payments`, data),
   deleteEarlyPayment: (id: number, earlyId: number) =>
     request<Schedule>("DELETE", `/debts/${id}/early-payments/${earlyId}`),
+
+  lists: () => request<DebtList[]>("GET", "/lists"),
+  leaveList: (ownerId: number) => request<void>("DELETE", `/lists/${ownerId}/membership`),
+
+  members: () => request<Member[]>("GET", "/sharing/members"),
+  updateMember: (userId: number, role: MemberRole) => request<Member>("PATCH", `/sharing/members/${userId}`, { role }),
+  removeMember: (userId: number) => request<void>("DELETE", `/sharing/members/${userId}`),
+  invites: () => request<Invite[]>("GET", "/sharing/invites"),
+  createInvite: (role: MemberRole) => request<Invite>("POST", "/sharing/invites", { role }),
+  revokeInvite: (id: number) => request<void>("DELETE", `/sharing/invites/${id}`),
+  previewInvite: (token: string) => request<InvitePreview>("GET", `/invites/${encodeURIComponent(token)}`),
+  acceptInvite: (token: string) => request<DebtList>("POST", `/invites/${encodeURIComponent(token)}/accept`),
 };

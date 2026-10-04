@@ -63,6 +63,10 @@ export function ScheduleList({ rows, onTogglePaid, onDeleteEarly, busyKey }: Pro
               >
                 {row.is_paid ? "✓" : ""}
               </button>
+            ) : row.is_paid ? (
+              <span className="check check-on" role="img" aria-label="Оплачен">
+                ✓
+              </span>
             ) : (
               <span className="schedule-no">{row.period_no}</span>
             )}

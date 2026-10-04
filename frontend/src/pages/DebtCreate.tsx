@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { LoanInput, ScheduleType } from "../api/types";
 import { ScheduleList } from "../components/ScheduleList";
+import { useLists } from "../currentList";
 import { BackButton, MainButton } from "../components/Buttons";
 import { SCHEDULE_LABEL, addMonthsIso, formatDate, money, normalizeNumber, pluralMonths, todayIso } from "../format";
 
@@ -32,6 +33,10 @@ function validate(loan: LoanInput): string | null {
 
 export function DebtCreate() {
   const navigate = useNavigate();
+  // долг можно добавить и в чужой список, если там есть права на редактирование
+  const listParam = Number(useSearchParams()[0].get("list"));
+  const listId = Number.isInteger(listParam) && listParam > 0 ? listParam : undefined;
+  const targetList = useLists().data?.find((l) => l.owner.user_id === listId);
   const queryClient = useQueryClient();
 
   const [name, setName] = useState("");
@@ -67,7 +72,7 @@ export function DebtCreate() {
   });
 
   const create = useMutation({
-    mutationFn: () => api.createDebt({ ...loan, name: name.trim() }),
+    mutationFn: () => api.createDebt({ ...loan, name: name.trim() }, listId),
     onSuccess: (debt) => {
       queryClient.invalidateQueries({ queryKey: ["debts"] });
       navigate(`/debts/${debt.id}`, { replace: true });
@@ -90,6 +95,9 @@ export function DebtCreate() {
       <header className="page-header">
         <h1>Новый долг</h1>
       </header>
+      {targetList && !targetList.is_own && (
+        <p className="hint">В список: {targetList.owner.display_name}</p>
+      )}
 
       <section className="card form">
         <label className="field">
